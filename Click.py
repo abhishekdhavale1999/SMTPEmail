@@ -4,31 +4,8 @@ import smtplib
 import csv
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask import Flask, request
-
-app = Flask(__name__)
 
 st.title('Email Sender')
-
-@app.route('/')
-def index():
-    return 'Streamlit server is running.'
-
-@app.route('/send_emails', methods=['POST'])
-def send_emails():
-    sender_email = request.form.get('sender_email')
-    sender_password = request.form.get('sender_password')
-    csv_file = request.files['csv_file']
-
-    if not sender_email or not sender_password or not csv_file:
-        return 'Please provide sender email, sender password, and upload a CSV file.', 400
-
-    try:
-        recipients_df = pd.read_csv(csv_file)
-        send_emails(sender_email, sender_password, recipients_df)
-        return 'Emails sent successfully!'
-    except Exception as e:
-        return f'Error: {str(e)}', 500
 
 def send_emails(sender_email, sender_password, recipients_df):
     smtp_server = 'smtp.gmail.com'
@@ -56,16 +33,11 @@ def send_emails(sender_email, sender_password, recipients_df):
 
         server.quit()
 
-@app.route('/click', methods=['GET'])
-def track_click():
-    recipient_email = request.args.get('recipient_email')
-    unique_link = request.args.get('unique_link')
-    
-    # Log the click event with recipient's email and unique link
-    with open('clicks.log', 'a') as logfile:
-        logfile.write(f"{recipient_email},{unique_link}\n")
-    
-    return 'Link clicked successfully!'
+sender_email = st.text_input('Sender Email')
+sender_password = st.text_input('Sender Password', type='password')
+csv_file = st.file_uploader('Upload CSV File', type=['csv'])
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if sender_email and sender_password and csv_file:
+    recipients_df = pd.read_csv(csv_file)
+    send_emails(sender_email, sender_password, recipients_df)
+    st.success('Emails sent successfully!')
