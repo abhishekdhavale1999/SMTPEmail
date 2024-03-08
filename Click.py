@@ -1,76 +1,71 @@
+import streamlit as st
+import pandas as pd
 import smtplib
 import csv
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import Flask, request
-from urllib.parse import parse_qs
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 app = Flask(__name__)
 
+st.title('Email Sender')
+
 @app.route('/')
 def index():
-    return '''
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file">
-        <input type="submit" value="Upload">
-    </form>
-    '''
+    return 'Streamlit server is running.'
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    file = request.files['file']
-    file.save('recipients.csv')
-    send_emails()
-    return 'Emails sent successfully!'
-
+@app.route('/send_emails', methods=['POST'])
 def send_emails():
-    sender_email = 'abhishekdhavale121@gmail.com'
-    sender_password = 'vssj pgrs xums trgx'
-    
-    with open('recipients.csv', newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            recipient_email = row['email']
-            unique_link = row['unique_link']
-            send_email(sender_email, sender_password, recipient_email, unique_link)
+    sender_email = request.form.get('sender_email')
+    sender_password = request.form.get('sender_password')
+    csv_file = request.files['csv_file']
 
-def send_email(sender_email, sender_password, recipient_email, unique_link):
+    if not sender_email or not sender_password or not csv_file:
+        return 'Please provide sender email, sender password, and upload a CSV file.', 400
+
+    try:
+        recipients_df = pd.read_csv(csv_file)
+        send_emails(sender_email, sender_password, recipients_df)
+        return 'Emails sent successfully!'
+    except Exception as e:
+        return f'Error: {str(e)}', 500
+
+def send_emails(sender_email, sender_password, recipients_df):
     smtp_server = 'smtp.gmail.com'
-    smtp_port = 587  
+    smtp_port = 587
 
-    subject = 'Your Personalized Link'
-    body = f'Hello,\n\nClick the following link to access your personalized content:\n{unique_link}\n\nBest regards,\nSender'
+    for index, row in recipients_df.iterrows():
+        recipient_email = row['email']
+        unique_link = row['unique_link']
+
+        subject = 'Your Personalized Link'
+        body = f'Hello,\n\nClick the following link to access your personalized content:\n{unique_link}\n\nBest regards,\nSender'
+
+        message = MIMEMultipart()
+        message['From'] = sender_email
+        message['To'] = recipient_email
+        message['Subject'] = subject
+        message.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+
+        server.sendmail(sender_email, recipient_email, message.as_string())
+        print(f"Email sent to {recipient_email}")
+
+        server.quit()
+
+@app.route('/click', methods=['GET'])
+def track_click():
+    recipient_email = request.args.get('recipient_email')
+    unique_link = request.args.get('unique_link')
     
-    message = MIMEMultipart()
-    message['From'] = sender_email
-    message['To'] = recipient_email
-    message['Subject'] = subject
-    message.attach(MIMEText(body, 'plain'))
-
-    server = smtplib.SMTP(smtp_server, smtp_port)
-    server.starttls()
-    server.login(sender_email, sender_password)
-
-    server.sendmail(sender_email, recipient_email, message.as_string())
-    print(f"Email sent to {recipient_email}")
-    
-    server.quit()
-
-@app.route('/<path:path>')
-def catch_all(path):
-    parsed_url = parse_qs(path.split('?')[-1])
-    if 'email' in parsed_url and 'unique_link' in parsed_url:
-        recipient_email = parsed_url['email'][0]
-        unique_link = parsed_url['unique_link'][0]
-        track_click(recipient_email, unique_link)
-        return 'Link clicked successfully!'
-    else:
-        return 'Bad request'
-
-def track_click(recipient_email, unique_link):
+    # Log the click event with recipient's email and unique link
     with open('clicks.log', 'a') as logfile:
         logfile.write(f"{recipient_email},{unique_link}\n")
+    
+    return 'Link clicked successfully!'
 
 if __name__ == '__main__':
     app.run(debug=True)
