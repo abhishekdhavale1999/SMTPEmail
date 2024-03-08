@@ -4,32 +4,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 import csv
-from flask import Flask, request
-
-app = Flask(__name__)
 
 st.title('Email Sender')
 
-@app.route('/')
-def index():
-    return 'Streamlit server is running.'
-
-@app.route('/send_emails', methods=['POST'])
-def send_emails():
-    sender_email = request.form.get('sender_email')
-    sender_password = request.form.get('sender_password')
-    csv_file = request.files['csv_file']
-
-    if not sender_email or not sender_password or not csv_file:
-        return 'Please provide sender email, sender password, and upload a CSV file.', 400
-
-    try:
-        recipients_df = pd.read_csv(csv_file)
-        send_emails(sender_email, sender_password, recipients_df)
-        return 'Emails sent successfully!'
-    except Exception as e:
-        return f'Error: {str(e)}', 500
-
+# Function to send emails
 def send_emails(sender_email, sender_password, recipients_df):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -39,13 +17,13 @@ def send_emails(sender_email, sender_password, recipients_df):
         unique_link = row['unique_link']
 
         subject = 'Your Personalized Link'
-        body = f'Hello,\n\nClick the following link to access your personalized content:\n{unique_link}\n\nBest regards,\nSender'
+        body = f'Hello,\n\nClick the following link to access your personalized content:\n{unique_link}\n\nBest regards,\nSender\n\n<img src="http://yourdomain.com/open?recipient_email={recipient_email}" alt="Open Email">'
 
-        message = MIMEMultipart()
+        message = MIMEMultipart("alternative")
         message['From'] = sender_email
         message['To'] = recipient_email
         message['Subject'] = subject
-        message.attach(MIMEText(body, 'plain'))
+        message.attach(MIMEText(body, 'html'))
 
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
@@ -56,18 +34,17 @@ def send_emails(sender_email, sender_password, recipients_df):
 
         server.quit()
 
-@app.route('/click', methods=['GET'])
-def track_click():
-    recipient_email = request.args.get('recipient_email')
-    unique_link = request.args.get('unique_link')
-    
-    # Log the click event with recipient's email and unique link
-    with open('clicks.log', 'a') as logfile:
-        logfile.write(f"{recipient_email},{unique_link}\n")
-    
-    st.success(f'Link clicked successfully by: {recipient_email}')
-    
-    return 'Link clicked successfully!'
+# Read CSV file
+csv_file = st.file_uploader('Upload CSV File', type=['csv'])
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if csv_file is not None:
+    recipients_df = pd.read_csv(csv_file)
+    sender_email = st.text_input('Sender Email')
+    sender_password = st.text_input('Sender Password', type='password')
+
+    if st.button('Send Emails'):
+        if sender_email and sender_password:
+            send_emails(sender_email, sender_password, recipients_df)
+            st.success('Emails sent successfully!')
+        else:
+            st.error('Please provide sender email and password.')
