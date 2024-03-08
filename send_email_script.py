@@ -1,4 +1,4 @@
-# send_email_script.py
+# combined_app.py
 
 import streamlit as st
 import smtplib
@@ -26,8 +26,15 @@ def send_email(sender_email, sender_password, recipient_email, unique_link):
     st.success(f"Email sent to {recipient_email}")
     server.quit()
 
+def track_click(recipient_email, unique_link):
+    with open('clicks.log', 'a+') as logfile:
+        existing_data = logfile.readlines()
+        exists = any(f"{recipient_email},{unique_link}" in line for line in existing_data)
+        if not exists:
+            logfile.write(f"{recipient_email},{unique_link}\n")
+
 def main():
-    st.title('Email Sending')
+    st.title('Email Sending and Click Tracking')
 
     sender_email = st.text_input('Sender Email')
     sender_password = st.text_input('Sender Password', type='password')
@@ -36,6 +43,15 @@ def main():
 
     if st.button('Send Email'):
         send_email(sender_email, sender_password, recipient_email, unique_link)
+
+    st.write('---')
+
+    recipient_email_click = st.text_input('Recipient Email for Click Tracking')
+    unique_link_click = st.text_input('Unique Link for Click Tracking')
+
+    if st.button('Track Click'):
+        track_click(recipient_email_click, unique_link_click)
+        st.success('Click tracked successfully!')
 
 if __name__ == "__main__":
     main()
